@@ -1,7 +1,7 @@
 package cc.mrbird.febs.common.config;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.serializer.SerializerFeature;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -25,8 +25,8 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
+import java.io.IOException;
 import java.io.Serializable;
-import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Arrays;
 
@@ -52,15 +52,19 @@ public class RedisConfig extends CachingConfigurerSupport {
     @Value("${spring.redis.jedis.pool.max-wait}")
     private long maxWaitMillis;
 
+    @Value("${spring.redis.database:0}")
+    private int database;
+
     @Bean
     public JedisPool redisPoolFactory() {
         JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
         jedisPoolConfig.setMaxIdle(maxIdle);
         jedisPoolConfig.setMaxWaitMillis(maxWaitMillis);
-        if (StringUtils.isNotBlank(password))
-            return new JedisPool(jedisPoolConfig, host, port, timeout, password);
-        else
-            return new JedisPool(jedisPoolConfig, host, port, timeout);
+        if (StringUtils.isNotBlank(password)) {
+            return new JedisPool(jedisPoolConfig, host, port, timeout, password, database);
+        } else {
+            return new JedisPool(jedisPoolConfig, host, port, timeout, null, database);
+        }
     }
 
     @Bean
@@ -69,6 +73,7 @@ public class RedisConfig extends CachingConfigurerSupport {
         redisStandaloneConfiguration.setHostName(host);
         redisStandaloneConfiguration.setPort(port);
         redisStandaloneConfiguration.setPassword(RedisPassword.of(password));
+        redisStandaloneConfiguration.setDatabase(database);
 
         JedisClientConfiguration.JedisClientConfigurationBuilder jedisClientConfiguration = JedisClientConfiguration.builder();
         jedisClientConfiguration.connectTimeout(Duration.ofMillis(timeout));
@@ -77,15 +82,15 @@ public class RedisConfig extends CachingConfigurerSupport {
     }
 
     @Bean(name = "redisTemplate")
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"rawtypes"})
     @ConditionalOnMissingBean(name = "redisTemplate")
     public RedisTemplate<Object, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<Object, Object> template = new RedisTemplate<>();
         //使用 fastjson 序列化
-        FastJsonRedisSerializer fastJsonRedisSerializer = new FastJsonRedisSerializer(Object.class);
+        JacksonRedisSerializer jacksonRedisSerializer = new JacksonRedisSerializer<>(Object.class);
         // value 值的序列化采用 fastJsonRedisSerializer
-        template.setValueSerializer(fastJsonRedisSerializer);
-        template.setHashValueSerializer(fastJsonRedisSerializer);
+        template.setValueSerializer(jacksonRedisSerializer);
+        template.setHashValueSerializer(jacksonRedisSerializer);
         // key 的序列化采用 StringRedisSerializer
         template.setKeySerializer(new StringRedisSerializer());
         template.setHashKeySerializer(new StringRedisSerializer());
@@ -131,18 +136,25 @@ public class RedisConfig extends CachingConfigurerSupport {
     }
 }
 
-class FastJsonRedisSerializer<T> implements RedisSerializer<T> {
-    private static final Charset DEFAULT_CHARSET = Charset.forName("UTF-8");
+class JacksonRedisSerializer<T> implements RedisSerializer<T> {
     private Class<T> clazz;
+    private ObjectMapper mapper;
 
-    FastJsonRedisSerializer(Class<T> clazz) {
+    JacksonRedisSerializer(Class<T> clazz) {
         super();
         this.clazz = clazz;
+        this.mapper = new ObjectMapper();
+        mapper.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
     }
 
     @Override
     public byte[] serialize(T t) throws SerializationException {
-        return JSON.toJSONString(t, SerializerFeature.WriteClassName).getBytes(DEFAULT_CHARSET);
+        try {
+            return mapper.writeValueAsBytes(t);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     @Override
@@ -150,7 +162,11 @@ class FastJsonRedisSerializer<T> implements RedisSerializer<T> {
         if (bytes.length <= 0) {
             return null;
         }
-        String str = new String(bytes, DEFAULT_CHARSET);
-        return JSON.parseObject(str, clazz);
+        try {
+            return mapper.readValue(bytes, clazz);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 }

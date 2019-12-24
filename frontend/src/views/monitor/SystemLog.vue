@@ -50,8 +50,8 @@
       </a-form>
     <div>
       <div class="operator">
-        <a-button v-hasPermission="'log:delete'" @click="batchDelete" type="primary" ghost>删除</a-button>
-        <a-dropdown v-hasPermission="'log:export'">
+        <a-button v-hasPermission="['log:delete']" @click="batchDelete" type="primary" ghost>删除</a-button>
+        <a-dropdown v-hasPermission="['log:export']">
           <a-menu slot="overlay">
             <a-menu-item key="export-data" @click="exprotExccel">导出Excel</a-menu-item>
           </a-menu>
@@ -63,6 +63,7 @@
       <!-- 表格区域 -->
       <a-table ref="TableInfo"
                :columns="columns"
+               :rowKey="record => record.id"
                :dataSource="dataSource"
                :pagination="pagination"
                :loading="loading"
@@ -195,11 +196,8 @@ export default {
         content: '当您点击确定按钮后，这些记录将会被彻底删除',
         centered: true,
         onOk () {
-          let ids = []
-          for (let key of that.selectedRowKeys) {
-            ids.push(that.dataSource[key].id)
-          }
-          that.$delete('log/' + ids.join(',')).then(() => {
+          let ids = that.selectedRowKeys.join(',')
+          that.$delete('log/' + ids).then(() => {
             that.$message.success('删除成功')
             that.selectedRowKeys = []
             that.search()

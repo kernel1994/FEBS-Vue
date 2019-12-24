@@ -17,6 +17,7 @@ import cc.mrbird.febs.system.domain.UserConfig;
 import cc.mrbird.febs.system.manager.UserManager;
 import cc.mrbird.febs.system.service.LoginLogService;
 import cc.mrbird.febs.system.service.UserService;
+import com.baomidou.mybatisplus.core.toolkit.StringPool;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
@@ -171,7 +172,7 @@ public class LoginController {
         // zset 存储登录用户，score 为过期时间戳
         this.redisService.zadd(FebsConstant.ACTIVE_USERS_ZSET_PREFIX, Double.valueOf(token.getExipreAt()), mapper.writeValueAsString(activeUser));
         // redis 中存储这个加密 token，key = 前缀 + 加密 token + .ip
-        this.redisService.set(FebsConstant.TOKEN_CACHE_PREFIX + token.getToken() + "." + ip, token.getToken(), properties.getShiro().getJwtTimeOut() * 1000);
+        this.redisService.set(FebsConstant.TOKEN_CACHE_PREFIX + token.getToken() + StringPool.DOT + ip, token.getToken(), properties.getShiro().getJwtTimeOut() * 1000);
 
         return activeUser.getId();
     }

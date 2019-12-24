@@ -47,12 +47,12 @@
     </div>
     <div>
       <div class="operator">
-        <a-button type="primary" ghost @click="add" v-hasPermission="'user:add'">新增</a-button>
-        <a-button @click="batchDelete" v-hasPermission="'user:delete'">删除</a-button>
-        <a-dropdown v-hasAnyPermission="'user:reset','user:export'">
+        <a-button type="primary" ghost @click="add" v-hasPermission="['user:add']">新增</a-button>
+        <a-button @click="batchDelete" v-hasPermission="['user:delete']">删除</a-button>
+        <a-dropdown v-hasAnyPermission="['user:reset','user:export']">
           <a-menu slot="overlay">
-            <a-menu-item v-hasPermission="'user:reset'" key="password-reset" @click="resetPassword">密码重置</a-menu-item>
-            <a-menu-item v-hasPermission="'user:export'" key="export-data" @click="exportExcel">导出Excel</a-menu-item>
+            <a-menu-item v-hasPermission="['user:reset']" key="password-reset" @click="resetPassword">密码重置</a-menu-item>
+            <a-menu-item v-hasPermission="['user:export']" key="export-data" @click="exportExcel">导出Excel</a-menu-item>
           </a-menu>
           <a-button>
             更多操作 <a-icon type="down" />
@@ -62,6 +62,7 @@
       <!-- 表格区域 -->
       <a-table ref="TableInfo"
                :columns="columns"
+               :rowKey="record => record.userId"
                :dataSource="dataSource"
                :pagination="pagination"
                :loading="loading"
@@ -77,10 +78,10 @@
           </a-popover>
         </template>
         <template slot="operation" slot-scope="text, record">
-          <a-icon v-hasPermission="'user:update'" type="setting" theme="twoTone" twoToneColor="#4a9ff5" @click="edit(record)" title="修改用户"></a-icon>
+          <a-icon v-hasPermission="['user:update']" type="setting" theme="twoTone" twoToneColor="#4a9ff5" @click="edit(record)" title="修改用户"></a-icon>
           &nbsp;
-          <a-icon v-hasPermission="'user:view'" type="eye" theme="twoTone" twoToneColor="#42b983" @click="view(record)" title="查看"></a-icon>
-          <a-badge v-hasNoPermission="'user:update','user:view'" status="warning" text="无权限"></a-badge>
+          <a-icon v-hasPermission="['user:view']" type="eye" theme="twoTone" twoToneColor="#42b983" @click="view(record)" title="查看"></a-icon>
+          <a-badge v-hasNoPermission="['user:update','user:view']" status="warning" text="无权限"></a-badge>
         </template>
       </a-table>
     </div>
@@ -287,9 +288,8 @@ export default {
         centered: true,
         onOk () {
           let userIds = []
-          for (let key of that.selectedRowKeys) {
-            userIds.push(that.dataSource[key].userId)
-          }
+          let selectedRowKeysStr = ',' + that.selectedRowKeys.join(',') + ','
+          userIds.push(that.dataSource.filter(f => { return selectedRowKeysStr.indexOf(',' + f.userId + ',') > -1 }).map(m => { return m.userId }))
           that.$delete('user/' + userIds.join(',')).then(() => {
             that.$message.success('删除成功')
             that.selectedRowKeys = []
@@ -313,9 +313,8 @@ export default {
         centered: true,
         onOk () {
           let usernames = []
-          for (let key of that.selectedRowKeys) {
-            usernames.push(that.dataSource[key].username)
-          }
+          let selectedRowKeysStr = ',' + that.selectedRowKeys.join(',') + ','
+          usernames.push(that.dataSource.filter(f => { return selectedRowKeysStr.indexOf(',' + f.userId + ',') > -1 }).map(m => { return m.username }))
           that.$put('user/password/reset', {
             usernames: usernames.join(',')
           }).then(() => {
